@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Installer for AIC8800D80 / AIC8800D81 USB WiFi 6 dongles (USB id 368b:8d81)
-# on Linux kernel 7.1+ (tested on Fedora 44, kernel 7.1.3). WiFi only.
+# Installer for AIC8800D80 / AIC8800D81 USB WiFi 6 dongles (USB id 368b:8d81) on
+# Linux kernel 7.1 and 7.2 (tested on Fedora 44). WiFi only.
 #
-# It downloads the BrosTrend aic8800 v1.0.9 driver, applies kernel-7.1 source
-# patches, installs the firmware + udev mode-switch rule, and builds via DKMS.
+# Downloads the BrosTrend aic8800 driver, applies the kernel-7.1/7.2 source
+# patches, installs firmware + the udev mode-switch rule, and builds via DKMS.
 set -euo pipefail
 
-VER=1.0.9
 DEB_URL=https://linux.brostrend.com/aic8800-dkms.deb
-SRC=/usr/src/aic8800-$VER
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 echo ">>> [1/6] Installing build prerequisites (dnf)..."
@@ -20,11 +18,18 @@ echo ">>> [2/6] Downloading driver package..."
 wget --no-check-certificate -qO aic.deb "$DEB_URL"
 ar x aic.deb && tar xf data.tar.*
 
-echo ">>> [3/6] Applying kernel-7.1 patches..."
-python3 "$HERE/patch_kernel71.py" "usr/src/aic8800-$VER"
+# The package version is whatever the .deb extracts to (e.g. 1.0.9 or 6.4.3.0 -
+# BrosTrend has shipped both; the code is identical). Detect it, don't hardcode.
+SRCDIR="$(ls -d usr/src/aic8800-*/ | head -1)"; SRCDIR="${SRCDIR%/}"
+VER="$(basename "$SRCDIR" | sed 's/^aic8800-//')"
+SRC="/usr/src/aic8800-$VER"
+echo "    detected package version: $VER"
+
+echo ">>> [3/6] Applying kernel 7.1/7.2 patches..."
+python3 "$HERE/patch_kernel71.py" "$SRCDIR"
 
 echo ">>> [4/6] Installing source, firmware, and udev mode-switch rule..."
-sudo rm -rf "$SRC"; sudo cp -r "usr/src/aic8800-$VER" /usr/src/
+sudo rm -rf "$SRC"; sudo cp -r "$SRCDIR" /usr/src/
 sudo cp -r lib/firmware/aic8800* /lib/firmware/
 sudo cp lib/udev/rules.d/aic.rules /lib/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger || true
